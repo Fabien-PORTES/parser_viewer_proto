@@ -9,23 +9,34 @@ import re
 class Variable:
     def __init__(self, names):
         self._name = names
-        self._regex_tuple = list()
+        self._regex = list()
+        self._repetition = list()
         self._reg_sep =  "/"
+        self._wrong_regex = False
     def _get_regex(self):
-        for repet, reg in zip(self.repet, self.regex):
-            yield (repet, reg)
+        return [r for r in zip(self._repetition, self._regex)]
     def _set_regex(self, line):
         try:
-            repetition = int(line[:line.find(self._reg_sep)].strip())
+            self._repetition.append(int(line[:line.find(self._reg_sep)].strip()))
         except ValueError:
-            repetition = 1
+            self._repetition.append(1)
             print("Repetition set to 1 to the variable", self._name)
-        regex = re.compile(line[line.find(self._reg_sep) + 1: line.rfind(self._reg_sep)])
-        self._regex_tuple.append((regex, repetition))
-    regex_tuple = property(_get_regex, _set_regex)
+        try:
+            regex = re.compile(line[line.find(self._reg_sep) + 1: line.rfind(self._reg_sep)])
+        except :
+            regex = re.compile("")
+            self._wrong_regex = True
+            print("Wrong regex with '{}' variable, in file {}".format(self._name, Bloc.current_path))
+        self._regex.append(regex)
+    regex = property(_get_regex, _set_regex)
+    
+    def __repr__(self):
+        return "Class_Variable %s" %self._name
 
 class Bloc:
+    current_path = ""
     def __init__(self, path):
+        current_path = path
         self.name = ""
         self._variable = list()
         self.repetition = int()
@@ -42,14 +53,18 @@ class Bloc:
                 if line == "" or '#' in line[0]:
                     continue
                 elif '.' in line[0]:
-                    self._variable.append(Variable(line.split(".")[0:]))
+                    self._variable.append(Variable(line.split(".")[1:]))
                 elif self._reg_sep in line[-1]:					
-                    self._variable[-1].regex_tuple = line
+                    self._variable[-1].regex = line
                 elif "!" in line[-1]:
                     self._regex_break.append([line[line.find('!') + 1:line.rfind('!')].strip()])
                 elif re.match("\s*[N|n]\s*=\s*\d+", line):
                     self.repetition = int(re.match("\s*[N|n]\s*=\s*(\d+)", line).groups()[0])
-
+    def first_reg(self):
+        return self._variable[0].regex[-1][-1].pattern
+    def last_reg(self):
+        return self._variable[-1].regex[-1][-1].pattern
+    
     def __repr__(self):
         return "Bloc {0}\n".format(self.name)
 
@@ -59,6 +74,7 @@ class ParentBloc:
         self._blocs = list()
         self._order_bloc = list()
         self._repetition = int(1)
+        self._breaking_regex = list()
         
         self.fill_self(path)
         self.fill(path)
@@ -81,64 +97,33 @@ class ParentBloc:
         self._blocs.append(ParentBloc(path))
         
     def fill(self, path):
-        print(self._order_bloc)
         for bloc in self._order_bloc:
             if os.path.isfile(bloc):
                 self.fill_file(bloc)
             elif os.path.isdir(bloc):
                 self.fill_self(bloc)
                 self.fill_folder(bloc)
-                
+    
+    def next_regex(self, bloc_idx):
+        print(type(self._blocs[bloc_idx]))
+        if isinstance(self._blocs[bloc_idx], Bloc):
+            return self._blocs[bloc_idx].first_reg()
+        elif isinstance(self._blocs[bloc_idx], ParentBloc):
+            return ParentBloc.next_regex(self._blocs[bloc_idx], 0)
+
     def __repr__(self):
         return "ParentBloc {0}\nBlocs : {1}".format(self.name, self._blocs)
     
+    def regex_limit(self):
+        self._breaking_regex.append(self.next_regex(-1))
+        for bloc in self._blocs:
+            if isinstance(bloc, Bloc):
+                pass
+            elif isinstance(bloc, ParentBloc):
+                pass
 
-a = ParentBloc(os.path.normpath("C:\\Users\\Maison\\Desktop\\python\\OUT"))
+#a = ParentBloc(os.path.normpath("C:\\Users\\Maison\\Desktop\\python\\OUT"))
+a = ParentBloc("/home/fabien/Bureau/last IA1/OUT")
 print(a)
 
-def regex_limit(self):
-    last_bloc = self.tree_dict[self.tree_dict["order_bloc"][-1]]
-    self.tree_dict["breaking_regex"] = [next_regex(last_bloc)] #last
-    def last_regex(objet_regex):
-        for bloc_idx, bloc in enumerate(objet_regex["order_bloc"]):
-            print("Bloc : ", bloc)
-			
-            child_bloc = objet_regex[bloc]
-            child_bloc["breaking_regex"] = list()
-            regex_temp = list() 
-				
-            if "regex_break" in child_bloc:
-            # on ajoute les regex ajouté manuellement entre "!"
-            # dans les fichiers de regex
-                regex_temp.extend(child_bloc["regex_break"])
-            if "regex" in child_bloc:
-                # si le bloc est un bloc avec des variables et des regex (un fichier),
-                # on ajoute la dernière regex du bloc
-                regex_temp.append(child_bloc["regex"].values()[-1][-1]["regex"])
-                if child_bloc["nb_bloc"] > 1:
-                    # on ajoute la première regex du bloc si le bloc est répété plus d'une fois
-                    first_reg = child_bloc["regex"].values()[0][-1]["regex"]
-                    if first_reg not in regex_temp:
-                        regex_temp.append(first_reg)
-            else:
-                # si le bloc est un dossier (donc pas de regex)
-                # on ajoute la première regex du dossier
-                regex_temp.append(next_regex(child_bloc))
-				
-            # on ajoute la première regex du bloc suivant si ce dernier existe
-            # sinon on ajoute la première regex du bloc parent
-            try:
-                bloc_suivant = objet_regex[objet_regex["order_bloc"][bloc_idx + 1]]
-                regex_temp.append(next_regex(bloc_suivant))
-            except IndexError:
-                regex_temp.append(objet_regex["breaking_regex"][0])
-				
-            # on ajoute les regex break du bloc parent si elles n'ont pas encore été ajoutés
-            regex_temp.extend([r for r in objet_regex["breaking_regex"] if r not in regex_temp])
-				
-            child_bloc["breaking_regex"].extend(regex_temp)
-            print(child_bloc["breaking_regex"])
-				
-            if "order_bloc" in child_bloc:
-                last_regex(child_bloc)
-    last_regex(self.tree_dict)
+print(a.next_regex(-1))
