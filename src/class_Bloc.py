@@ -32,17 +32,36 @@ class Variable:
     def __repr__(self):
         return "Class_Variable %s" %self._name
 
-class Bloc:
-    def __init__(self, path):
-        Bloc.current_path = path
+class BlocTemplate:
+    def __init__(self):
         self.name = ""
-        self._variable = list()
         self.repetition = int()
-        self._reg_sep = "/"
         self._breaking_regex = list()
+    
+    def add_breaking_regex(self, regex):
+        if isinstance(regex, list):
+            for r in regex:
+                if r not in self._breaking_regex:
+                    self._breaking_regex.append(r)
+        elif isinstance(regex, str):
+            if regex not in self._breaking_regex:
+                self._breaking_regex.append(regex)
+    def depth(self, i):
+        pass
+        #if isinstance(self, ParentBloc):
+        #    return max([depth(elt, i+1) for elt in self._blocs if isinstance(elt, ParentBloc)])
+        #elif isinstance(self, Bloc):
+        #        return i
+
+class Bloc(BlocTemplate):
+    def __init__(self, path):
+        super().__init__()
+        self._variable = list()
+        self._reg_sep = "/"
         
+        Bloc.current_path = path
         self.fill_self(path)
-        
+
     def fill_self(self, path):
         self.name = path[path.rfind(os.sep) + 1:]
         with open(path, 'r') as bloc_file:
@@ -58,33 +77,29 @@ class Bloc:
                     self._breaking_regex.append(line[line.find('!') + 1:line.rfind('!')].strip())
                 elif re.match("\s*[N|n]\s*=\s*\d+", line):
                     self.repetition = int(re.match("\s*[N|n]\s*=\s*(\d+)", line).groups()[0])
+                    
     def first_reg(self):
         return self._variable[0].regex[-1][1].pattern
+    
     def last_reg(self):
         return self._variable[-1].regex[-1][1].pattern
+    
     def set_breaking_regex(self):
         self._breaking_regex.append(self.last_reg())
         if self.repetition > 1:
             self._breaking_regex.append(self.first_reg())
-    def add_breaking_regex(self, regex):
-        if isinstance(regex, list):
-            for r in regex:
-                if r not in self._breaking_regex:
-                    self._breaking_regex.append(r)
-        elif isinstance(regex, str):
-            if regex not in self._breaking_regex:
-                self._breaking_regex.append(regex)
     
+    def parse(self, file_to_parse):
+        
+
     def __repr__(self):
         return "Bloc {0}\n".format(self.name)
 
-class ParentBloc:
+class ParentBloc(BlocTemplate):
     def __init__(self, path):
-        self.name = ""
+        super().__init__()
         self._blocs = list()
         self._order_bloc = list()
-        self._repetition = int(1)
-        self._breaking_regex = list()
         
         self.fill_self(path)
         self.fill()
@@ -107,8 +122,8 @@ class ParentBloc:
             elif os.path.isdir(bloc_path):
                 #self.fill_self(bloc_path)
                 self._blocs.append(ParentBloc(bloc_path))
-        
-    
+        self._breaking_regex.append(self.last_regex(-1))
+
     def next_regex(self, bloc_idx):
         if isinstance(self._blocs[bloc_idx], Bloc):
             return self._blocs[bloc_idx].first_reg()
@@ -120,15 +135,6 @@ class ParentBloc:
             return self._blocs[bloc_idx].last_reg()
         elif isinstance(self._blocs[bloc_idx], ParentBloc):
             return ParentBloc.last_regex(self._blocs[bloc_idx], -1)
-    
-    def add_breaking_regex(self, regex):
-        if isinstance(regex, list):
-            for r in regex:
-                if r not in self._breaking_regex:
-                    self._breaking_regex.append(r)
-        elif isinstance(regex, str):
-            if regex not in self._breaking_regex:
-                self._breaking_regex.append(regex)
 
     def regex_limit(self):
         for (i, bloc) in enumerate(self._blocs):
@@ -146,19 +152,24 @@ class ParentBloc:
             print(bloc._breaking_regex)
             if isinstance(bloc, ParentBloc):
                 ParentBloc.regex_limit(bloc)
+
     def __repr__(self):
         return "ParentBloc {0}\nBlocs : {1}".format(self.name, self._blocs)
+    
+
+        
 #a = ParentBloc(os.path.normpath("C:\\Users\\Maison\\Desktop\\python\\OUT"))
 
 
 a = ParentBloc("/home/fabien/Bureau/last IA1/OUT")
 print(a)
-a._breaking_regex.append(a.next_regex(-1))
-a.regex_limit()
 
+a.regex_limit()
 
 print("tareum")
 print(a.next_regex(-1))
 print(a._breaking_regex)
 
 print([a.name for a in a._blocs])
+
+print(a.depth(0))
