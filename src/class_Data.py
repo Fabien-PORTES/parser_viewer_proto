@@ -15,11 +15,11 @@ class FileLineWrapper(object):
         self.line = self.f.readline()
         try:
             assert self.line
-        except:
+        except AssertionError:
             raise FileEnd()
         return self.line
     def tell(self):
-        return self.f.tell()-len(self.line)
+        return self.f.tell()
     def seek(self, curseur):
         self.f.seek(curseur)
     def match_regex(self, regex, breaking_regex):
@@ -33,7 +33,6 @@ class FileLineWrapper(object):
         for reg in [r for r in breaking_regex if r != regex]:
             if re.search(reg, self.line):
                 self.seek(self.curseur)
-                self.readline()
                 raise BlocEnd()
 
 class Main():
