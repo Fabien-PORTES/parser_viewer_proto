@@ -5,68 +5,8 @@
 import os
 import re
 from collections import OrderedDict
-
-class FileEnd(Exception):
-	pass			
-class BlocEnd(Exception):
-	pass
-
-class ParseRegex():
-    def __init__(self, path):
-        self.path = path
-        self.shortcuts = OrderedDict()
-        self.split_sign = ";;"
-        self.load_shortcuts()
-        
-    def load_shortcuts(self):
-        with open(self.path, 'r') as shortcut_file:
-            for line in shortcut_file:
-                line = line.strip()
-                if line == "" or '#' in line[0]:
-                    continue
-                elif self.split_sign in line:
-                    tup = line.split(self.split_sign)
-                    self.shortcuts[tup[0]] = tup[1]
-
-class Variable:
-    shortcuts = OrderedDict()
-    def __init__(self, names):
-        self._name = names
-        self._regex = list()
-        self._repetition = list()
-        self._reg_sep =  "/"
-        self._wrong_regex = False
-    def _get_regex(self):
-        return [r for r in zip(self._repetition, self._regex)]
-    def _set_regex(self, line):
-        try:
-            self._repetition.append(int(line[:line.find(self._reg_sep)].strip()))
-        except ValueError:
-            self._repetition.append(1)
-            print("Repetition set to 1 to the variable", self._name)
-        regex = line[line.find(self._reg_sep) + 1: line.rfind(self._reg_sep)]
-        regex = self.parse_regex(regex)
-        try:
-            regex = re.compile(regex)
-        except:
-            regex = re.compile("")
-            self._wrong_regex = True
-            print("Wrong regex with '{}' variable, in file {}".format(self._name[-1], Bloc.current_path))
-        self._regex.append(regex)
-    regex = property(_get_regex, _set_regex)
-    
-    def parse_regex(self, regex):
-        for k,v in Variable.shortcuts.items():
-            regex = re.sub(re.escape(k), v, regex)
-        return regex
-    
-    def first_reg(self):
-        return self._regex[0].pattern
-    def last_reg(self):
-        return self._regex[-1].pattern
-    
-    def __repr__(self):
-        return "Class_Variable [{}]".format(",".join(self._name))
+from Variable_File import *
+from SqliteWrite import *
 
 class BlocTemplate:
     def __init__(self, path):
@@ -146,6 +86,8 @@ class Bloc(BlocTemplate):
                 data_dict[var] = data
             if len(match_list) > len(var_list):
                 data_dict[var] = match_list[len(var_list)-1:]
+            # if len(match_list) < len(var_list): nothing
+            # variable without matched data are not created
         data_dict = OrderedDict()
         for var_idx, variable in enumerate(self._obj_list):
             temp_match_list = list()
@@ -230,16 +172,50 @@ class ParentBloc(BlocTemplate):
             if isinstance(bloc, ParentBloc):
                 ParentBloc.regex_limit(bloc)
 
-    def __repr__(self):
-        return "ParentBloc {0}\nBlocs : {1}\n".format(self.name, self._obj_list)
-    
-    def parse(self, file_to_parse):
+    def parse(self, file_to_parse, database, parentID = 1):
         for i in range(self.repetition):
+            key = self.name
+            value = i+1 if self.repetition > 1 else None
+            parentID1 = database.push_to_db(*[key, value, parentID])
             for bloc in self._obj_list:
                 if isinstance(bloc, Bloc):
                     for j in range(bloc.repetition):
-                        bloc.parse(file_to_parse)
+                        data_dict = bloc.parse(file_to_parse)
+                        gen_dict = self.to_sqlite(data_dict, parentID1)
+                        for sql_val in gen_dict:
+                            #print(sql_val)
+                            parentID2 = database.push_to_db(*sql_val)
+                            try:
+                                gen_dict.send(parentID2)
+                            except StopIteration:
+                                pass
                 elif isinstance(bloc, ParentBloc):
-                    ParentBloc.parse(bloc, file_to_parse)
+                    ParentBloc.parse(bloc, file_to_parse, database, parentID1)
+
+    def to_sqlite(self, data_dict, parentID):
+        if "name" not in data_dict.keys():
+            for gen in self.dict_to_db(data_dict, parentID):
+                yield gen 
+        else:
+            keys = [k for k in data_dict.keys() if "name" not in k]
+            for (i, row) in enumerate(data_dict["name"]):
+                parentID1 = yield [row, None, parentID]
+                for k in keys:
+                    try:
+                        val = data_dict[k][i]
+                        yield [k, val, parentID1]
+                    except IndexError:
+                        print("Less value than header. Value set to 'None'")
+    
+    def dict_to_db(self, data_dict, parentID):
+        if isinstance(data_dict, dict):
+            for key, value in data_dict.items():
+                #print([key, value, parentID])
+                yield [key, value, parentID]
+
+    def __repr__(self):
+        return "ParentBloc {0}\nBlocs : {1}\n".format(self.name, self._obj_list)
+    
+
 
         
