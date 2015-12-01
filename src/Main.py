@@ -53,3 +53,4 @@ app.set_regex_tree("/home/fabien/Bureau/last_IA1/OUT")
 app.set_file_to_parse("/home/fabien/Bureau/last_IA1/OUTPUTcut")
 app.init_database()
 app.parse()
+

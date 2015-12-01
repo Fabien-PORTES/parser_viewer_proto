@@ -172,25 +172,34 @@ class ParentBloc(BlocTemplate):
             if isinstance(bloc, ParentBloc):
                 ParentBloc.regex_limit(bloc)
 
-    def parse(self, file_to_parse, database, parentID = 1):
+    def parse(self, file_to_parse, database, parentID = [1]):
         for i in range(self.repetition):
             key = self.name
             value = i+1 if self.repetition > 1 else None
-            parentID1 = database.push_to_db(*[key, value, parentID])
+            parentID.append(database.push_to_db(*[key, value, parentID[-1]]))
+            if parentID[1] == 1:
+                del parentID[0]
+            print(parentID)
+            database.push_to_closure(parentID)
+            
             for bloc in self._obj_list:
                 if isinstance(bloc, Bloc):
                     for j in range(bloc.repetition):
                         data_dict = bloc.parse(file_to_parse)
-                        gen_dict = self.to_sqlite(data_dict, parentID1)
+                        gen_dict = self.to_sqlite(data_dict, parentID[-1])
                         for sql_val in gen_dict:
                             #print(sql_val)
-                            parentID2 = database.push_to_db(*sql_val)
+                            parentID.append(database.push_to_db(*sql_val))
                             try:
-                                gen_dict.send(parentID2)
+                                gen_dict.send(parentID[-1])
                             except StopIteration:
                                 pass
+                            print(parentID)
+                            database.push_to_closure(parentID)
+                            del parentID[-1]
                 elif isinstance(bloc, ParentBloc):
-                    ParentBloc.parse(bloc, file_to_parse, database, parentID1)
+                    ParentBloc.parse(bloc, file_to_parse, database, parentID)
+            del parentID[-1]
 
     def to_sqlite(self, data_dict, parentID):
         if "name" not in data_dict.keys():
@@ -210,7 +219,6 @@ class ParentBloc(BlocTemplate):
     def dict_to_db(self, data_dict, parentID):
         if isinstance(data_dict, dict):
             for key, value in data_dict.items():
-                #print([key, value, parentID])
                 yield [key, value, parentID]
 
     def __repr__(self):

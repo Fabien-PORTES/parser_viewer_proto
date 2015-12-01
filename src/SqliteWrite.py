@@ -14,12 +14,14 @@ class SqliteWrite():
         self.database = None
         self.cursor = None
         self.columns = OrderedDict()
-        self.insert_query
+        self.insert_data_query = ""
+        self.insert_closure_query = ""
         
         self.set_db(path)
-        self.set_columns()
-        self.create_table()
-        self.insert_query()
+        self.set_data_columns()
+        self.create_data_table()
+        self.create_closure_table()
+        self.set_insert_query()
         
     def set_db(self, path):
         print(path)
@@ -29,34 +31,87 @@ class SqliteWrite():
         self.cursor.execute('PRAGMA synchronous = OFF')
         self.database.isolation_level = 'IMMEDIATE'
     
-    def set_columns(self):
+    def set_data_columns(self):
         self.columns["row_id"] = "INTEGER PRIMARY KEY NOT NULL"
         self.columns["key"] = "TEXT"
         self.columns["value"] = "FLOAT"
         self.columns["parentID"] = "INTEGER"
     
-    def create_table(self):
+    def create_data_table(self):
         create_table = "CREATE TABLE " + self.table_name
         create_table += " (" + ",".join( k + " " + v for k,v in self.columns.items()) + ")"
         print(create_table)
         self.cursor.execute(create_table)
+        
+    def create_closure_table(self):
+        create_table = ("CREATE TABLE " + "closure_" + self.table_name +
+                        "(ancestor, descendant, depth)")
+        self.cursor.execute(create_table)
+        
 
-    def insert_query(self):
+    def set_insert_query(self):
         col = ",".join(list(self.columns.keys())[1:])
         values_mark = ",".join((len(self.columns.keys())-1) * ["?"])
-        self.insert_query = "INSERT INTO data ({columns}) VALUES ({values})".format(columns = col, values = values_mark)
+        self.insert_data_query = "INSERT INTO {table} ({columns}) VALUES ({values})".format(table = self.table_name, columns = col, values = values_mark)
+        
+        self.insert_closure_query = "INSERT INTO closure_{table} (ancestor, descendant, depth) VALUES (?, ?, ?)".format(table = self.table_name)
     
     def push_to_db(self, key, value = None, parentID = None):
         #print(self.insert_query, (key, value, parentID))
         #print(key, value, parentID)
-        self.cursor.execute(self.insert_query, (key, value, parentID))
+        self.cursor.execute(self.insert_data_query, (key, value, parentID))
         return self.cursor.lastrowid
+    
+    def push_to_closure(self, parent_list):
+        l = len(parent_list)
+        if l >1:
+            for i, row_id in enumerate(parent_list):
+                ancestor = row_id
+                descendant = parent_list[-1]
+                depth = l - (i + 1)
+                self.cursor.execute(self.insert_closure_query,(ancestor, descendant, depth))
+        else:
+            ancestor = 1
+            descendant = 1
+            depth = 0
+            self.cursor.execute(self.insert_closure_query,(ancestor, descendant, depth))
     
     def commit(self):
         self.database.commit()
         
     def last_row_id(self):
-        return self.cursor.lastrowid        
+        return self.cursor.lastrowid
+
+class ParentNode():
+    def __init__(self):
+        self.row_id = list()
+        self.key = list()
+        self.value = list()
+        
+    def __getitem__(self, i):
+        try:
+            return (self.row_id[i], self.key[i], self.value[i])
+        except IndexError:
+            print("ParentID has no index {}".format(str(i)))
+        
+    def add(self, id, key = None, value = None):
+        self.row_id.append(id)
+        self.key.append(key)
+        self.value.append(value)
+        
+    def __delitem__(self, i):
+        del self.row_id[i]
+        del self.key[i]
+        del self.value[i]
+    
+    def __setitem__(self, i, id, key = None, value = None):
+        try:
+            self.row_id[i] = id
+            self.key[i] = key
+            self.value[i] = value
+        except IndexError:
+            print("ParentID has no index {}".format(str(i)))
+        
 
         
         
