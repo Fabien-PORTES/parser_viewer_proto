@@ -47,19 +47,21 @@ class SqliteWrite():
         create_table = ("CREATE TABLE " + "closure_" + self.table_name +
                         "(ancestor, descendant, depth)")
         self.cursor.execute(create_table)
-        
 
     def set_insert_query(self):
         col = ",".join(list(self.columns.keys())[1:])
         values_mark = ",".join((len(self.columns.keys())-1) * ["?"])
         self.insert_data_query = "INSERT INTO {table} ({columns}) VALUES ({values})".format(table = self.table_name, columns = col, values = values_mark)
-        
         self.insert_closure_query = "INSERT INTO closure_{table} (ancestor, descendant, depth) VALUES (?, ?, ?)".format(table = self.table_name)
     
     def push_to_db(self, key, value = None, parentID = None):
         #print(self.insert_query, (key, value, parentID))
         #print(key, value, parentID)
-        self.cursor.execute(self.insert_data_query, (key, value, parentID))
+        if isinstance(value, list):
+            for v in value:
+                self.cursor.execute(self.insert_data_query, (key, v, parentID))
+        else:
+            self.cursor.execute(self.insert_data_query, (key, value, parentID))
         return self.cursor.lastrowid
     
     def push_to_closure(self, parent_list):
@@ -81,38 +83,3 @@ class SqliteWrite():
         
     def last_row_id(self):
         return self.cursor.lastrowid
-
-class ParentNode():
-    def __init__(self):
-        self.row_id = list()
-        self.key = list()
-        self.value = list()
-        
-    def __getitem__(self, i):
-        try:
-            return (self.row_id[i], self.key[i], self.value[i])
-        except IndexError:
-            print("ParentID has no index {}".format(str(i)))
-        
-    def add(self, id, key = None, value = None):
-        self.row_id.append(id)
-        self.key.append(key)
-        self.value.append(value)
-        
-    def __delitem__(self, i):
-        del self.row_id[i]
-        del self.key[i]
-        del self.value[i]
-    
-    def __setitem__(self, i, id, key = None, value = None):
-        try:
-            self.row_id[i] = id
-            self.key[i] = key
-            self.value[i] = value
-        except IndexError:
-            print("ParentID has no index {}".format(str(i)))
-        
-
-        
-        
-        

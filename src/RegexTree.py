@@ -5,6 +5,7 @@
 import os
 import re
 from collections import OrderedDict
+from usefull_functions import *
 from Variable_File import *
 from SqliteWrite import *
 
@@ -81,19 +82,12 @@ class Bloc(BlocTemplate):
         """Parse a file and try to match the regex of regexDict. If match, store matches in attributes.
 		If no match but file is read, return 1
 		"""
-        def create_dict(var_list, match_list):
-            for data, var in zip(match_list, var_list):
-                data_dict[var] = data
-            if len(match_list) > len(var_list):
-                data_dict[var] = match_list[len(var_list)-1:]
-            # if len(match_list) < len(var_list): nothing
-            # variable without matched data are not created
         data_dict = OrderedDict()
         for var_idx, variable in enumerate(self._obj_list):
             temp_match_list = list()
             breaking_regex = self.get_breaking_regex(var_idx)
             for (repetition, regex) in variable.regex:
-                for compteur in range(repetition):
+                for _ in range(repetition):
                     regexMatch = False
                     while not regexMatch:
                         try:
@@ -101,8 +95,9 @@ class Bloc(BlocTemplate):
                         except BlocEnd:
                             break
                         except FileEnd:
-                            create_dict(variable._name, temp_match_list)
-                            print("Fin du fichier atteint sur :\nVariable :", variable._name, "\nRegex :", self.name)
+                            create_dict(variable._name, temp_match_list, data_dict)
+                            print("End of file reached on :\n\tRegex bloc  : {b}\n\tVariable : {v}\n\t"
+                                "Regex : {r}".format(b = self.name, v = variable._name, r = regex.pattern))
                             raise FileEnd(data_dict)
                     else:
                         for elt in regexMatch.groups():
@@ -111,7 +106,7 @@ class Bloc(BlocTemplate):
                                     temp_match_list.append(float(elt))
                                 except ValueError:
                                     temp_match_list.append(elt)
-            create_dict(variable._name, temp_match_list)
+            create_dict(variable._name, temp_match_list, data_dict)
         return data_dict
     
     def __repr__(self):
@@ -172,39 +167,52 @@ class ParentBloc(BlocTemplate):
             if isinstance(bloc, ParentBloc):
                 ParentBloc.regex_limit(bloc)
 
-    def parse(self, file_to_parse, database, parentID = [1]):
+    def parse(self, file_to_parse, database, parentID = []):
+        file_end = False
         for i in range(self.repetition):
             key = self.name
             value = i+1 if self.repetition > 1 else None
-            parentID.append(database.push_to_db(*[key, value, parentID[-1]]))
-            if parentID[1] == 1:
-                del parentID[0]
-            print(parentID)
-            database.push_to_closure(parentID)
-            
+            try:
+                parentID.append(database.push_to_db(*[key, value, parentID[-1]]))
+            except IndexError:
+                #happens only for the first insert when there is no parent
+                parentID.append(database.push_to_db(*[key, value, None]))
+            #database.push_to_closure(parentID)
             for bloc in self._obj_list:
                 if isinstance(bloc, Bloc):
-                    for j in range(bloc.repetition):
-                        data_dict = bloc.parse(file_to_parse)
-                        gen_dict = self.to_sqlite(data_dict, parentID[-1])
-                        for sql_val in gen_dict:
-                            #print(sql_val)
+                    for _ in range(bloc.repetition):
+                        try:
+                            data_dict = bloc.parse(file_to_parse)
+                        except FileEnd as e:
+                            file_end = True
+                            data_dict = e.args[0]
+                            if not data_dict:
+                                raise
+                        if not data_dict:
+                            break
+                        gen_dict = self.to_sqlite(data_dict, parentID[-1])                        
+                        sql_val = next(gen_dict)
+                        while 1:
                             parentID.append(database.push_to_db(*sql_val))
                             try:
-                                gen_dict.send(parentID[-1])
+                                sql_val = gen_dict.send(parentID[-1])
                             except StopIteration:
-                                pass
-                            print(parentID)
-                            database.push_to_closure(parentID)
+                                #database.push_to_closure(parentID)
+                                del parentID[-1]
+                                break
+                            #database.push_to_closure(parentID)
                             del parentID[-1]
+                        if file_end:
+                            raise FileEnd()
+                            
                 elif isinstance(bloc, ParentBloc):
                     ParentBloc.parse(bloc, file_to_parse, database, parentID)
             del parentID[-1]
 
     def to_sqlite(self, data_dict, parentID):
         if "name" not in data_dict.keys():
-            for gen in self.dict_to_db(data_dict, parentID):
-                yield gen 
+             for key, value in data_dict.items():   
+                yield [key, value, parentID]
         else:
             keys = [k for k in data_dict.keys() if "name" not in k]
             for (i, row) in enumerate(data_dict["name"]):

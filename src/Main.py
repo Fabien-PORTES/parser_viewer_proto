@@ -32,7 +32,7 @@ class Main():
                 file_to_parse = FileLineWrapper(open(file_path, 'r'))
                 self.regex_tree.parse(file_to_parse, self.database)
             except FileEnd as error:
-                print(error)
+                print("End of file reached on file : {}".format(file_path))
         self.database.commit()
         end = time()
         elapsed = end - start
@@ -50,7 +50,7 @@ app = Main()
 app.set_shortcut("/home/fabien/Bureau/Last dev/regex/regex_shortcut")
 Variable.shortcuts = app.shortcut.shortcuts
 app.set_regex_tree("/home/fabien/Bureau/last_IA1/OUT")
-app.set_file_to_parse("/home/fabien/Bureau/last_IA1/OUTPUTcut")
+app.set_file_to_parse("/home/fabien/Bureau/last_IA1/OUTPUT")
 app.init_database()
 app.parse()
 

@@ -16,6 +16,7 @@ class FileLineWrapper(object):
     def __init__(self, f):
         self.f = f
         self.curseur = 0
+        self.file_end = False
     def close(self):
         return self.f.close()
     def readline(self):
@@ -35,6 +36,7 @@ class FileLineWrapper(object):
         if regexMatch:
             #print("MATCH")
             #print(self.line.strip())
+            #print(regexMatch.groups())
             self.curseur = self.tell()
             return regexMatch
         for reg in [r for r in breaking_regex if r != regex]:
