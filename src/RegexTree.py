@@ -172,15 +172,12 @@ class ParentBloc(BlocTemplate):
         for i in range(self.repetition):
             key = self.name
             value = i+1 if self.repetition > 1 else None
-            try:
-                parentID.append(database.push_to_db(*[key, value, parentID[-1]]))
-            except IndexError:
-                #happens only for the first insert when there is no parent
-                parentID.append(database.push_to_db(*[key, value, None]))
-            #database.push_to_closure(parentID)
+            parentID.append(database.push_to_db(key, value, parentID))
+            #parentID.append(database.push_to_closure(parentID))
+            database.commit()
             for bloc in self._obj_list:
                 if isinstance(bloc, Bloc):
-                    for _ in range(bloc.repetition):
+                    for j in range(bloc.repetition):
                         try:
                             data_dict = bloc.parse(file_to_parse)
                         except FileEnd as e:
@@ -190,44 +187,33 @@ class ParentBloc(BlocTemplate):
                                 raise
                         if not data_dict:
                             break
-                        gen_dict = self.to_sqlite(data_dict, parentID[-1])                        
-                        sql_val = next(gen_dict)
-                        while 1:
-                            parentID.append(database.push_to_db(*sql_val))
-                            try:
-                                sql_val = gen_dict.send(parentID[-1])
-                            except StopIteration:
-                                #database.push_to_closure(parentID)
+                        
+                        if "name" not in data_dict.keys():
+                            for key, value in data_dict.items():
+                                parentID.append(database.push_to_db(key, value, parentID))
+                                #parentID.append(database.push_to_closure(parentID))
                                 del parentID[-1]
-                                break
-                            #database.push_to_closure(parentID)
-                            del parentID[-1]
+                        else:
+                            #This is a 3 level dict (a table has been matched
+                            keys = [k for k in data_dict.keys() if "name" not in k]
+                            for (i, row) in enumerate(data_dict["name"]):
+                                parentID.append(database.push_to_db(row, None, parentID))
+                                #parentID.append(database.push_to_closure(parentID))
+                                for k in keys:
+                                    try:
+                                        val = data_dict[k][i]
+                                        parentID.append(database.push_to_db(k, val, parentID))
+                                        #parentID.append(database.push_to_closure(parentID))
+                                    except IndexError:
+                                        print("Less value than header. Value set to 'None'")
+                                    del parentID[-1]
+                                del parentID[-1]
                         if file_end:
                             raise FileEnd()
                             
                 elif isinstance(bloc, ParentBloc):
                     ParentBloc.parse(bloc, file_to_parse, database, parentID)
             del parentID[-1]
-
-    def to_sqlite(self, data_dict, parentID):
-        if "name" not in data_dict.keys():
-             for key, value in data_dict.items():   
-                yield [key, value, parentID]
-        else:
-            keys = [k for k in data_dict.keys() if "name" not in k]
-            for (i, row) in enumerate(data_dict["name"]):
-                parentID1 = yield [row, None, parentID]
-                for k in keys:
-                    try:
-                        val = data_dict[k][i]
-                        yield [k, val, parentID1]
-                    except IndexError:
-                        print("Less value than header. Value set to 'None'")
-    
-    def dict_to_db(self, data_dict, parentID):
-        if isinstance(data_dict, dict):
-            for key, value in data_dict.items():
-                yield [key, value, parentID]
 
     def __repr__(self):
         return "ParentBloc {0}\nBlocs : {1}\n".format(self.name, self._obj_list)

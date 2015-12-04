@@ -31,7 +31,7 @@ class Main():
             try:
                 file_to_parse = FileLineWrapper(open(file_path, 'r'))
                 self.regex_tree.parse(file_to_parse, self.database)
-            except FileEnd as error:
+            except FileEnd:
                 print("End of file reached on file : {}".format(file_path))
         self.database.commit()
         end = time()
@@ -42,7 +42,7 @@ class Main():
         format = "%d-%m-%Y_%H:%M:%S"
         now = datetime.strftime(datetime.now(), format)
         path = self.files_to_parse[0] + now + ".db"
-        self.database = SqliteWrite(path)
+        self.database = NestedSet(path)
     
 
 app = Main()
