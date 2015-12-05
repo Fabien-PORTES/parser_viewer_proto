@@ -5,7 +5,6 @@
 from time import time
 from RegexTree import *
 from datetime import datetime
-import os
 
 class Main():
     def __init__(self):
@@ -38,19 +37,40 @@ class Main():
         elapsed = end - start
         print(elapsed)
     
-    def init_database(self):
+    def init_database(self, tables):
         format = "%d-%m-%Y_%H:%M:%S"
         now = datetime.strftime(datetime.now(), format)
         path = self.files_to_parse[0] + now + ".db"
-        self.database = NestedSet(path)
-    
+        self.database = SqliteWrite(path)
+
+        for table in tables:
+            self.database.init_table(table)
+            self.database.cursor.execute(table.create_table_query())
 
 app = Main()
+
+table_data = ( NestedSet(name = "data",\
+            columns = [("row_id", "INTEGER PRIMARY KEY NOT NULL"),\
+                       ("key", "TEXT"),\
+                       ("value", "FLOAT"),\
+                       ("lft", "INTEGER"),\
+                       ("rgt", "INTEGER")]) )
+table_data.set_insert_query(1)
+
+#table_data = ( AdjacencyList(name = "data",\
+#            columns = [("row_id", "INTEGER PRIMARY KEY NOT NULL"),\
+#                       ("key", "TEXT"),\
+#                       ("value", "FLOAT"),\
+#                       ("parentID", "INTEGER")]) )
+#table_data.set_insert_query(1)
+
+
 
 app.set_shortcut("/home/fabien/Bureau/Last dev/regex/regex_shortcut")
 Variable.shortcuts = app.shortcut.shortcuts
 app.set_regex_tree("/home/fabien/Bureau/last_IA1/OUT")
 app.set_file_to_parse("/home/fabien/Bureau/last_IA1/OUTPUT")
-app.init_database()
+app.init_database([table_data])
+
 app.parse()
 

@@ -5,84 +5,45 @@
 # -*- coding: utf-8 -*-
 
 import sqlite3
-from collections import OrderedDict
 
-class SqliteWrite():
-    def __init__(self, path):
-        self.path = ""
-        self.table_name = 'data'
-        self.database = None
+class TableDB():
+    def __init__(self, name, columns):
         self.cursor = None
-
-        self.set_db(path)
-        
-    def set_db(self, path):
-        print(path)
-        self.database = sqlite3.connect(path)
-        self.cursor = self.database.cursor()
-        self.cursor.execute('PRAGMA journal_mode = OFF')
-        self.cursor.execute('PRAGMA synchronous = OFF')
-        self.database.isolation_level = 'IMMEDIATE'
+        self.name = name
+        self.columns = columns
+        self.insert_query = ""
+        self.inserted_col_number = int()
     
-    def create_table(self, column_dict, table_name):
-        create_table = "CREATE TABLE " + table_name
-        create_table += " (" + ",".join( k + " " + v for k,v in column_dict.items()) + ")"
+    def set_cursor(self, cursor):
+        self.cursor = cursor
+    
+    def create_update_query(self, len_id_list):
+        query =('UPDATE data SET rgt = rgt + 2 WHERE row_id in ({id_list})'
+                .format(id_list = ",".join(len_id_list*['?'])))
+        return query
+    
+    def create_table_query(self):
+        create_table = "CREATE TABLE " + self.name
+        create_table += " (" + ",".join( k + " " + v for k,v in self.columns) + ")"
         print(create_table)
-        self.cursor.execute(create_table)
+        return create_table
 
-    def create_insert_query(self, column_dict, table_name):
-        col = ",".join(list(column_dict.keys())[1:])
-        values_data_mark = ",".join((len(column_dict)-1) * ["?"])
-        query = "INSERT INTO {table} ({columns}) VALUES ({values})".format(table = table_name, columns = col, values = values_data_mark)
-        print(column_dict)
+    def create_insert_query(self, first_col = 0):
+        col = ",".join([n for n,p in self.columns][first_col:])
+        values_data_mark = ",".join((len(self.columns)-first_col) * ["?"])
+        query = "INSERT INTO {table} ({columns}) VALUES ({values})".format(table = self.name, columns = col, values = values_data_mark)
         print(query)
         return query
-
-    def commit(self):
-        self.database.commit()
-        
-    def last_row_id(self):
-        return self.cursor.lastrowid
     
-class AdjacencyList(SqliteWrite):
-    def __init__(self, path):
-        super().__init__(path)
-        self.columns = OrderedDict()
-        self.closure_columns = OrderedDict()
-        self.insert_query = ""
-        self.insert_closure_query = ""
-        
-        self.set_columns()
-        self.set_insert_query()
-        self.create_table(self.columns, self.table_name)
-       
-        self.set_closure_table()
-        
-    def set_closure_table(self):
-        self.set_closure_columns()
-        table_name = "closure_" + self.table_name
-        self.create_table(self.closure_columns, 'closure_' + table_name)
-        col = ",".join(list(self.closure_columns.keys()))
-        values_data_mark = ",".join((len(self.closure_columns)) * ["?"])
-        self.insert_closure_query = ("INSERT INTO closure_{table} ({columns}) VALUES ({values})"
-        .format(table = table_name, columns = col, values = values_data_mark))
-    
-    def set_columns(self):
-        self.columns["row_id"] = "INTEGER PRIMARY KEY NOT NULL"
-        self.columns["key"] = "TEXT"
-        self.columns["value"] = "FLOAT"
-        self.columns["parentID"] = "INTEGER"
-    
-    def set_closure_columns(self):
-        self.closure_columns["ancestor"] = "INTEGER"
-        self.closure_columns["descendant"] = "INTEGER"
-        self.closure_columns["depth"] = "INTEGER"
-    
-    def set_insert_query(self):
-        self.insert_query = self.create_insert_query(self.columns, self.table_name)
+    def set_insert_query(self, i=0):
+        self.insert_query = self.create_insert_query(i)
         print(self.insert_query)
-        
-    def push_to_db(self, key, value, parent_list = None):
+
+class AdjacencyList(TableDB):
+    def __init__(self, name, columns):
+        super().__init__(name, columns)
+    
+    def push(self, key, value, parent_list = None):
         #print(self.insert_query, (key, value, parentID))
         #print(key, value, parent_list)
         if isinstance(value, list):
@@ -93,52 +54,18 @@ class AdjacencyList(SqliteWrite):
                 self.cursor.execute(self.insert_query, (key, value, None))
             else:
                 self.cursor.execute(self.insert_query, (key, value, parent_list[-1]))
-        self.push_to_closure(parent_list)
+        #self.push_to_closure(parent_list)
         return self.cursor.lastrowid
-    
-    def push_to_closure(self, parent_list):
-        l = len(parent_list)
-        if l >1:
-            for i, row_id in enumerate(parent_list):
-                ancestor = row_id
-                descendant = parent_list[-1]
-                depth = l - (i + 1)
-                self.cursor.execute(self.insert_closure_query,(ancestor, descendant, depth))
-        else:
-            ancestor = 1
-            descendant = 1
-            depth = 0
-            self.cursor.execute(self.insert_closure_query,(ancestor, descendant, depth))
-            
-class NestedSet(SqliteWrite):
-    def __init__(self, path):
-        super().__init__(path)
-        self.columns = OrderedDict()
+
+class NestedSet(TableDB):
+    def __init__(self, name, columns):
+        super().__init__(name, columns)
         self.len_parent_list = 0
         self.lft = 0
         self.rgt = 1
-        
-        self.set_columns()
-        self.set_insert_query()
-        self.create_table(self.columns, self.table_name)
-        
-    def set_insert_query(self):
-        self.insert_query = self.create_insert_query(self.columns, self.table_name)
-        print(self.insert_query )
 
-    def set_columns(self):
-        self.columns["row_id"] = "INTEGER PRIMARY KEY NOT NULL"
-        self.columns["key"] = "TEXT"
-        self.columns["value"] = "FLOAT"
-        self.columns["lft"] = "INTEGER"
-        self.columns["rgt"] = "INTEGER"
-
-
-    def push_to_db(self, key, value, parent_list):
-        query =('UPDATE data SET rgt = rgt + 2 WHERE row_id in ({id_list})'
-                .format(id_list = ",".join(len(parent_list)*['?'])))
-        #print(query)
-        #print(parent_list)
+    def push(self, key, value, parent_list):
+        query = self.create_update_query(len(parent_list))
         self.cursor.execute(query, parent_list)
         delta_len = len(parent_list) - self.len_parent_list
         if delta_len == 0:
@@ -154,3 +81,70 @@ class NestedSet(SqliteWrite):
         self.cursor.execute(self.insert_query, (key, value, self.lft, self.rgt))
         self.len_parent_list = len(parent_list)
         return self.cursor.lastrowid
+
+class Closure(TableDB):
+    def __init__(self, name, columns):
+        super().__init__(name, columns)
+
+    def push(self, parent_list):
+        l = len(parent_list)
+        if l >1:
+            for i, row_id in enumerate(parent_list):
+                ancestor = row_id
+                descendant = parent_list[-1]
+                depth = l - (i + 1)
+                self.cursor.execute(self.insert_query ,(ancestor, descendant, depth))
+        else:
+            ancestor = 1
+            descendant = 1
+            depth = 0
+            print(self.insert_query)
+            self.cursor.execute(self.insert_query,(ancestor, descendant, depth))
+        
+class SqliteWrite():
+    def __init__(self, path):
+        self.path = ""
+        self.database = None
+        self.cursor = None
+        self.table = list()
+        self.add_closure = False
+        
+        self.set_db(path)
+        
+    def set_db(self, path):
+        print(path)
+        self.database = sqlite3.connect(path)
+        self.cursor = self.database.cursor()
+        self.cursor.execute('PRAGMA journal_mode = OFF')
+        self.cursor.execute('PRAGMA synchronous = OFF')
+        self.database.isolation_level = 'IMMEDIATE'
+    
+    def get_cursor(self):
+        return self.cursor
+    
+    def create_table(self, table_name):
+        query = self.table[table_name].create_table()
+        self.cursor.execute(query)
+        
+    def init_table(self, table, add_closure = False):
+        self.table.append(table)
+        self.table[-1].set_cursor(self.cursor)
+        if add_closure:
+            self.add_closure = True
+            self.set_closure_table()
+            self.table[-1].set_cursor(self.cursor)
+
+    def commit(self):
+        self.database.commit()
+        
+    def last_row_id(self):
+        return self.cursor.lastrowid
+    
+    def set_closure_table(self):
+        closure = Closure(name = "closure_" + self.table[0].name,\
+                          columns = [("ancestor", "INTEGER"),\
+                                     ("descendant", "INTEGER"),\
+                                     ("depth", "INTEGER")])
+        closure.set_insert_query()
+        self.table.append(closure)
+        self.cursor.execute(self.table[-1].create_table_query())

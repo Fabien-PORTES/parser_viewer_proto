@@ -172,8 +172,9 @@ class ParentBloc(BlocTemplate):
         for i in range(self.repetition):
             key = self.name
             value = i+1 if self.repetition > 1 else None
-            parentID.append(database.push_to_db(key, value, parentID))
-            #parentID.append(database.push_to_closure(parentID))
+            parentID.append(database.table[0].push(key, value, parentID))
+            #database.table[1].push(parentID)
+            print(parentID)
             database.commit()
             for bloc in self._obj_list:
                 if isinstance(bloc, Bloc):
@@ -190,30 +191,35 @@ class ParentBloc(BlocTemplate):
                         
                         if "name" not in data_dict.keys():
                             for key, value in data_dict.items():
-                                parentID.append(database.push_to_db(key, value, parentID))
-                                #parentID.append(database.push_to_closure(parentID))
+                                parentID.append(database.table[0].push(key, value, parentID))
+                                #database.table[1].push(parentID)
+                                print(parentID)
                                 del parentID[-1]
+                                pass
                         else:
                             #This is a 3 level dict (a table has been matched
                             keys = [k for k in data_dict.keys() if "name" not in k]
                             for (i, row) in enumerate(data_dict["name"]):
-                                parentID.append(database.push_to_db(row, None, parentID))
-                                #parentID.append(database.push_to_closure(parentID))
+                                parentID.append(database.table[0].push(row, None, parentID))
+                                #database.table[1].push(parentID)
                                 for k in keys:
                                     try:
                                         val = data_dict[k][i]
-                                        parentID.append(database.push_to_db(k, val, parentID))
-                                        #parentID.append(database.push_to_closure(parentID))
+                                        parentID.append(database.table[0].push(k, val, parentID))
+                                        #database.table[1].push(parentID)
+                                        print(parentID)
                                     except IndexError:
                                         print("Less value than header. Value set to 'None'")
                                     del parentID[-1]
                                 del parentID[-1]
                         if file_end:
                             raise FileEnd()
-                            
+                    
                 elif isinstance(bloc, ParentBloc):
                     ParentBloc.parse(bloc, file_to_parse, database, parentID)
             del parentID[-1]
+            print(parentID)
+            
 
     def __repr__(self):
         return "ParentBloc {0}\nBlocs : {1}\n".format(self.name, self._obj_list)
