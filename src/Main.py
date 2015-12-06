@@ -49,20 +49,26 @@ class Main():
 
 app = Main()
 
-table_data = ( NestedSet(name = "data",\
-            columns = [("row_id", "INTEGER PRIMARY KEY NOT NULL"),\
+tree_table = ( Tree(name = "tree",\
+            columns = [("row_id", "INTEGER PRIMARY KEY NOT NULL"),
                        ("key", "TEXT"),\
                        ("value", "FLOAT"),\
-                       ("lft", "INTEGER"),\
-                       ("rgt", "INTEGER")]) )
-table_data.set_insert_query(1)
+                       ("depth", "INTEGER")]) )
+tree_table.set_insert_query(1)
 
-#table_data = ( AdjacencyList(name = "data",\
+#table_data = ( NestedSet(name = "data",\
 #            columns = [("row_id", "INTEGER PRIMARY KEY NOT NULL"),\
 #                       ("key", "TEXT"),\
 #                       ("value", "FLOAT"),\
-#                       ("parentID", "INTEGER")]) )
+#                       ("lft", "INTEGER"),\
+#                       ("rgt", "INTEGER")]) )
 #table_data.set_insert_query(1)
+
+table_data = ( SimpleTable(name = "data",\
+            columns = [("parentID", "INTEGER PRIMARY KEY NOT NULL"),\
+                       ("key", "TEXT"),\
+                       ("value", "FLOAT")]) )
+table_data.set_insert_query(0)
 
 
 
@@ -70,7 +76,7 @@ app.set_shortcut("/home/fabien/Bureau/Last dev/regex/regex_shortcut")
 Variable.shortcuts = app.shortcut.shortcuts
 app.set_regex_tree("/home/fabien/Bureau/last_IA1/OUT")
 app.set_file_to_parse("/home/fabien/Bureau/last_IA1/OUTPUT")
-app.init_database([table_data])
+app.init_database([table_data, tree_table])
 
 app.parse()
 

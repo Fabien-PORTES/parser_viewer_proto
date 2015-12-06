@@ -39,6 +39,34 @@ class TableDB():
         self.insert_query = self.create_insert_query(i)
         print(self.insert_query)
 
+class Tree(TableDB):
+    def __init__(self, name, columns):
+        super().__init__(name, columns)
+    
+    def push(self, key, value, depth):
+        #print(self.insert_query, (key, value, parentID))
+        #print(key, value, parent_list)
+        self.cursor.execute(self.insert_query, (key, value, depth))
+        return self.cursor.lastrowid
+    
+
+class SimpleTable(TableDB):
+    def __init__(self, name, columns):
+        super().__init__(name, columns)
+    
+    def push(self, key, value, parent_list = None):
+        #print(self.insert_query, (key, value, parentID))
+        #print(key, value, parent_list)
+        if isinstance(value, list):
+            for v in value:
+                self.cursor.execute(self.insert_query, (parent_list[-1], key, v))
+        else:
+            if not parent_list:
+                self.cursor.execute(self.insert_query, (key, value, None))
+            else:
+                self.cursor.execute(self.insert_query, (parent_list[-1], key, value))
+        return self.cursor.lastrowid
+
 class AdjacencyList(TableDB):
     def __init__(self, name, columns):
         super().__init__(name, columns)

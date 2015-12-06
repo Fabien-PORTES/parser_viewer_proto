@@ -167,13 +167,14 @@ class ParentBloc(BlocTemplate):
             if isinstance(bloc, ParentBloc):
                 ParentBloc.regex_limit(bloc)
 
-    def parse(self, file_to_parse, database, parentID = []):
+    def parse(self, file_to_parse, database, parentID = [], depth = 0):
         file_end = False
         for i in range(self.repetition):
             key = self.name
             value = i+1 if self.repetition > 1 else None
-            parentID.append(database.table[0].push(key, value, parentID))
+            #parentID.append(database.table[0].push(key, value, parentID)) nested set and adjacency list
             #database.table[1].push(parentID)
+            parentID.append(database.table[0].push(key, value, depth))
             print(parentID)
             database.commit()
             for bloc in self._obj_list:
@@ -191,8 +192,9 @@ class ParentBloc(BlocTemplate):
                         
                         if "name" not in data_dict.keys():
                             for key, value in data_dict.items():
-                                parentID.append(database.table[0].push(key, value, parentID))
+                                #parentID.append(database.table[0].push(key, value, parentID)) nested set and adjacency list
                                 #database.table[1].push(parentID)
+                                parentID.append(database.table[0].push(key, value, depth))
                                 print(parentID)
                                 del parentID[-1]
                                 pass
@@ -205,8 +207,9 @@ class ParentBloc(BlocTemplate):
                                 for k in keys:
                                     try:
                                         val = data_dict[k][i]
-                                        parentID.append(database.table[0].push(k, val, parentID))
+                                        #parentID.append(database.table[0].push(k, val, parentID)) nested set and adjacency list
                                         #database.table[1].push(parentID)
+                                        parentID.append(database.table[1].push(key, value, parentID))
                                         print(parentID)
                                     except IndexError:
                                         print("Less value than header. Value set to 'None'")
@@ -216,7 +219,7 @@ class ParentBloc(BlocTemplate):
                             raise FileEnd()
                     
                 elif isinstance(bloc, ParentBloc):
-                    ParentBloc.parse(bloc, file_to_parse, database, parentID)
+                    ParentBloc.parse(bloc, file_to_parse, database, parentID, depth+1)
             del parentID[-1]
             print(parentID)
             
