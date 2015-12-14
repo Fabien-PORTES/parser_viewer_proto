@@ -20,25 +20,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.centralWidget = QtWidgets.QWidget()
         #self.gridLayout = QtGui.QGridLayout(self.centralWidget)
         self.tree_view = QtWidgets.QColumnView()
+       
         #self.tree_view.setHeaderLabels(["Tree Matches", "Size"])
         #for i in range(self.tree_view.columnCount()):
         #    self.tree_view.resizeColumnToContents(i)
         
         self.tree_model = Data()
-        self.tree_view.setModel(self.tree_model)
-        self.selection_model = self.tree_view.selectionModel()
+
+        
         
         self.textEdit = QtWidgets.QPlainTextEdit()
         self.textEdit.setTabStopWidth(40) #40 is a number of pixel
         self.textEdit.setLineWrapMode(self.textEdit.NoWrap)
         
-        self.Hbox = QtWidgets.QHBoxLayout(self.centralWidget)
+        self.Hbox = QtWidgets.QVBoxLayout(self.centralWidget)
         self.Hbox.addWidget(self.tree_view)
         self.Hbox.addWidget(self.textEdit)
         
         self.setCentralWidget(self.centralWidget)
-
-        self.selection_model.selectionChanged.connect(self.selection_changed)
         
         loadRegex_Action = QtWidgets.QAction(QtGui.QIcon('exit24.png'), 'Load regex', self)
         loadRegex_Action.setStatusTip('Load regular expressions tree')
@@ -58,7 +57,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         displayAction = QtWidgets.QAction(QtGui.QIcon('exit24.png'), 'Display', self)
         displayAction.setStatusTip('Display Matches')
-        displayAction.triggered.connect(self.tree_model.fill_tree)
+        displayAction.triggered.connect(self.init_view)
 
         self.statusBar()
 
@@ -94,19 +93,18 @@ class MainWindow(QtWidgets.QMainWindow):
         path = os.path.normpath(QtWidgets.QFileDialog.getExistingDirectory())
         if path:
             core.set_regex_tree(path)
-            
 
     def init_database(self):
-        table_tree = ( AdjacencyList(name = "tree",\
-            columns = [("row_id", "INTEGER PRIMARY KEY NOT NULL"),\
-                       ("key", "TEXT"),\
-                       ("value", "INTEGER"),\
-                       ("parent_id", "INTEGER")]) )
-        table_tree.set_insert_query(1)
-        table_data = ( AdjacencyList(name = "data",\
+        table_tree = ( AdjacencyList(name = "data",\
             columns = [("row_id", "INTEGER PRIMARY KEY NOT NULL"),\
                        ("key", "TEXT"),\
                        ("value", "FLOAT"),\
+                       ("parent_id", "INTEGER")]) )
+        table_tree.set_insert_query(1)
+        table_data = ( AdjacencyList(name = "tree",\
+            columns = [("row_id", "INTEGER PRIMARY KEY NOT NULL"),\
+                       ("key", "TEXT"),\
+                       ("value", "INTEGER"),\
                        ("parent_id", "INTEGER")]) )
         table_data.set_insert_query(1)
         core.create_database([table_tree, table_data])
@@ -131,8 +129,20 @@ class MainWindow(QtWidgets.QMainWindow):
                 i = i.parent()
             del tree[-1]
             tree.reverse()
-            model_item = self.tree_model.get_child(tree)
-            self.textEdit.insertPlainText(str(model_item.data()))
+            item = self.tree_model.get_child(tree)
+        if not item.is_filled:
+            print(item.get_data())
+            self.tree_model.fill_item(item, item.get_data())
+        self.textEdit.insertPlainText(str(item.get_data()))
+        
+    def init_view(self):
+        self.tree_view.setModel(self.tree_model)
+        self.selection_model = self.tree_view.selectionModel()
+        
+        self.selection_model.selectionChanged.connect(self.selection_changed)
+        self.tree_model.fill_root()
+        
+        
         
 
     
