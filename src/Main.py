@@ -12,6 +12,7 @@ class Main():
         self.regex_tree = None
         self.files_to_parse = list()
         self.database = None
+        self.path = ""
     
     def set_shortcut(self, path):
         self.shortcut = ParseRegex(path)
@@ -37,23 +38,30 @@ class Main():
         elapsed = end - start
         print(elapsed)
     
-    def init_database(self, tables):
+    def create_database(self, tables):
         format = "%d-%m-%Y_%H:%M:%S"
         now = datetime.strftime(datetime.now(), format)
-        path = self.files_to_parse[0] + now + ".db"
-        self.database = SqliteWrite(path)
+        self.path = self.files_to_parse[0] + "_" + now + ".db"
+        self.init_database(self.path)
 
         for table in tables:
             self.database.init_table(table)
             self.database.cursor.execute(table.create_table_query())
+    
+    def init_database(self, path):
+        self.database = SqliteWrite(path)
+    
+    def get_cursor(self):
+        if self.database is not None:
+            return self.database.cursor
+        else:
+            print("None database has been initialiazed.")
 
-app = Main()
-
-tree_table = ( Tree(name = "tree",\
+tree_table = ( AdjacencyList(name = "tree",\
             columns = [("row_id", "INTEGER PRIMARY KEY NOT NULL"),
                        ("key", "TEXT"),\
-                       ("value", "FLOAT"),\
-                       ("depth", "INTEGER")]) )
+                       ("value", "INTEGER"),\
+                       ("parent_id", "INTEGER")]) )
 tree_table.set_insert_query(1)
 
 #table_data = ( NestedSet(name = "data",\
@@ -64,19 +72,19 @@ tree_table.set_insert_query(1)
 #                       ("rgt", "INTEGER")]) )
 #table_data.set_insert_query(1)
 
-table_data = ( SimpleTable(name = "data",\
-            columns = [("parentID", "INTEGER PRIMARY KEY NOT NULL"),\
+table_data = ( AdjacencyList(name = "data",\
+            columns = [("row_id", "INTEGER PRIMARY KEY NOT NULL"),\
                        ("key", "TEXT"),\
-                       ("value", "FLOAT")]) )
-table_data.set_insert_query(0)
+                       ("value", "FLOAT"),\
+                       ("parent_id", "INTEGER")]) )
+table_data.set_insert_query(1)
 
 
 
-app.set_shortcut("/home/fabien/Bureau/Last dev/regex/regex_shortcut")
-Variable.shortcuts = app.shortcut.shortcuts
-app.set_regex_tree("/home/fabien/Bureau/last_IA1/OUT")
-app.set_file_to_parse("/home/fabien/Bureau/last_IA1/OUTPUT")
-app.init_database([table_data, tree_table])
-
-app.parse()
+#app.set_shortcut("/home/fabien/Bureau/Last dev/regex/regex_shortcut")
+#Variable.shortcuts = app.shortcut.shortcuts
+#app.set_regex_tree("/home/fabien/Bureau/last_IA1/OUT")
+#app.set_file_to_parse("/home/fabien/Bureau/last_IA1/OUTPUTcut")
+#app.init_database([table_data])
+#app.parse()
 

@@ -71,6 +71,10 @@ class Variable:
         self._regex.append(regex)
     regex = property(_get_regex, _set_regex)
     
+    @classmethod
+    def set_shortcuts(cls, shortcuts):
+        cls.shortcuts = shortcuts
+    
     def parse_regex(self, regex):
         for k,v in Variable.shortcuts.items():
             regex = re.sub(re.escape(k), v, regex)
@@ -100,4 +104,7 @@ class ParseRegex():
                 elif self.split_sign in line:
                     tup = line.split(self.split_sign)
                     self.shortcuts[tup[0]] = tup[1]
+    
+    def get_shortcuts(self):
+        return self.shortcuts
 

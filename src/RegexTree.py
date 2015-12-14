@@ -160,7 +160,6 @@ class ParentBloc(BlocTemplate):
             try:
                 bloc.add_breaking_regex(self.next_regex(i+1))
             except IndexError:
-                print("IndexError")
                 bloc.add_breaking_regex(self._breaking_regex[0])
             bloc._breaking_regex.extend([r for r in self._breaking_regex if r not in bloc._breaking_regex])
             #print(bloc._breaking_regex)
@@ -174,8 +173,8 @@ class ParentBloc(BlocTemplate):
             value = i+1 if self.repetition > 1 else None
             #parentID.append(database.table[0].push(key, value, parentID)) nested set and adjacency list
             #database.table[1].push(parentID)
-            parentID.append(database.table[0].push(key, value, depth))
-            print(parentID)
+            parentID.append(database.table[0].push(key, value, parentID))
+            #print(parentID)
             database.commit()
             for bloc in self._obj_list:
                 if isinstance(bloc, Bloc):
@@ -194,34 +193,39 @@ class ParentBloc(BlocTemplate):
                             for key, value in data_dict.items():
                                 #parentID.append(database.table[0].push(key, value, parentID)) nested set and adjacency list
                                 #database.table[1].push(parentID)
-                                parentID.append(database.table[0].push(key, value, depth))
-                                print(parentID)
-                                del parentID[-1]
+                                database.table[1].push(key, value, parentID)
+                                database.table[0].push(key, value, parentID)
+                                #print(parentID)
+                                #del parentID[-1]
                                 pass
                         else:
+                            depth += 1
                             #This is a 3 level dict (a table has been matched
                             keys = [k for k in data_dict.keys() if "name" not in k]
                             for (i, row) in enumerate(data_dict["name"]):
                                 parentID.append(database.table[0].push(row, None, parentID))
+                                #parentID.append(database.table[0].push(row, None, parentID))
                                 #database.table[1].push(parentID)
                                 for k in keys:
                                     try:
                                         val = data_dict[k][i]
                                         #parentID.append(database.table[0].push(k, val, parentID)) nested set and adjacency list
                                         #database.table[1].push(parentID)
-                                        parentID.append(database.table[1].push(key, value, parentID))
-                                        print(parentID)
+                                        database.table[1].push(k, val, parentID)
+                                        database.table[0].push(key, value, parentID)
+                                        #print(parentID)
                                     except IndexError:
                                         print("Less value than header. Value set to 'None'")
-                                    del parentID[-1]
+                                    #del parentID[-1]
                                 del parentID[-1]
+                            depth -= 1
                         if file_end:
                             raise FileEnd()
                     
                 elif isinstance(bloc, ParentBloc):
                     ParentBloc.parse(bloc, file_to_parse, database, parentID, depth+1)
             del parentID[-1]
-            print(parentID)
+            #print(parentID)
             
 
     def __repr__(self):

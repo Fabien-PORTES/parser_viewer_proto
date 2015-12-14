@@ -32,7 +32,7 @@ class TableDB():
         col = ",".join([n for n,p in self.columns][first_col:])
         values_data_mark = ",".join((len(self.columns)-first_col) * ["?"])
         query = "INSERT INTO {table} ({columns}) VALUES ({values})".format(table = self.name, columns = col, values = values_data_mark)
-        print(query)
+        #print(query)
         return query
     
     def set_insert_query(self, i=0):
@@ -43,28 +43,13 @@ class Tree(TableDB):
     def __init__(self, name, columns):
         super().__init__(name, columns)
     
-    def push(self, key, value, depth):
+    def push(self, key, idx, parent_list):
         #print(self.insert_query, (key, value, parentID))
         #print(key, value, parent_list)
-        self.cursor.execute(self.insert_query, (key, value, depth))
-        return self.cursor.lastrowid
-    
-
-class SimpleTable(TableDB):
-    def __init__(self, name, columns):
-        super().__init__(name, columns)
-    
-    def push(self, key, value, parent_list = None):
-        #print(self.insert_query, (key, value, parentID))
-        #print(key, value, parent_list)
-        if isinstance(value, list):
-            for v in value:
-                self.cursor.execute(self.insert_query, (parent_list[-1], key, v))
+        if not parent_list:
+            self.cursor.execute(self.insert_query, (key, idx, None))
         else:
-            if not parent_list:
-                self.cursor.execute(self.insert_query, (key, value, None))
-            else:
-                self.cursor.execute(self.insert_query, (parent_list[-1], key, value))
+            self.cursor.execute(self.insert_query, (key, idx, parent_list[-1]))
         return self.cursor.lastrowid
 
 class AdjacencyList(TableDB):
@@ -88,26 +73,27 @@ class AdjacencyList(TableDB):
 class NestedSet(TableDB):
     def __init__(self, name, columns):
         super().__init__(name, columns)
-        self.len_parent_list = 0
-        self.lft = 0
-        self.rgt = 1
+        self.insert_query = None
+        self._len_parent_list = 0
+        self._lft = 0
+        self._rgt = 1
 
     def push(self, key, value, parent_list):
         query = self.create_update_query(len(parent_list))
         self.cursor.execute(query, parent_list)
-        delta_len = len(parent_list) - self.len_parent_list
+        delta_len = len(parent_list) - self._len_parent_list
         if delta_len == 0:
-            self.lft += 2
-            self.rgt += 2
+            self._lft += 2
+            self._rgt += 2
         elif delta_len > 0:
-            self.lft += 1
-            self.rgt += 1
+            self._lft += 1
+            self._rgt += 1
         elif delta_len < 0:
-            self.lft += 1 + abs(delta_len)
-            self.rgt += 1 + abs(delta_len)
+            self._lft += 1 + abs(delta_len)
+            self._rgt += 1 + abs(delta_len)
 
-        self.cursor.execute(self.insert_query, (key, value, self.lft, self.rgt))
-        self.len_parent_list = len(parent_list)
+        self.cursor.execute(self.insert_query, (key, value, self._lft, self._rgt))
+        self._len_parent_list = len(parent_list)
         return self.cursor.lastrowid
 
 class Closure(TableDB):
@@ -149,10 +135,6 @@ class SqliteWrite():
     
     def get_cursor(self):
         return self.cursor
-    
-    def create_table(self, table_name):
-        query = self.table[table_name].create_table()
-        self.cursor.execute(query)
         
     def init_table(self, table, add_closure = False):
         self.table.append(table)
