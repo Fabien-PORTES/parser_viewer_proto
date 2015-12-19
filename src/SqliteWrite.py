@@ -13,9 +13,14 @@ class TableDB():
         self.columns = columns
         self.insert_query = ""
         self.inserted_col_number = int()
+        self.delete_query = "DELETE FROM {table} WHERE row_id = {id}"
     
     def set_cursor(self, cursor):
         self.cursor = cursor
+    
+    def delete_row(self, row_id):
+        query = self.delete_query.format(table = self.name, id = row_id)
+        self.cursor.execute(query)
     
     def create_update_query(self, len_id_list):
         query =('UPDATE data SET rgt = rgt + 2 WHERE row_id in ({id_list})'
@@ -37,7 +42,7 @@ class TableDB():
     
     def set_insert_query(self, i=0):
         self.insert_query = self.create_insert_query(i)
-        print(self.insert_query)
+        #print(self.insert_query)
 
 class Tree(TableDB):
     def __init__(self, name, columns):
@@ -56,17 +61,22 @@ class AdjacencyList(TableDB):
     def __init__(self, name, columns):
         super().__init__(name, columns)
     
-    def push(self, key, value, parent_list = None):
+    def push(self, key, value, parent_list = None, has_child = 0):
         #print(self.insert_query, (key, value, parentID))
         #print(key, value, parent_list)
         if isinstance(value, list):
-            for v in value:
-                self.cursor.execute(self.insert_query, (key, v, parent_list[-1]))
+            if not parent_list:
+                for v in value:
+                    self.cursor.execute(self.insert_query, (key, v, None, has_child))
+            else:
+                for v in value:
+
+                    self.cursor.execute(self.insert_query, (key, v, parent_list[-1], has_child))
         else:
             if not parent_list:
-                self.cursor.execute(self.insert_query, (key, value, None))
+                self.cursor.execute(self.insert_query, (key, value, None, has_child))
             else:
-                self.cursor.execute(self.insert_query, (key, value, parent_list[-1]))
+                self.cursor.execute(self.insert_query, (key, value, parent_list[-1], has_child))
         #self.push_to_closure(parent_list)
         return self.cursor.lastrowid
 
@@ -112,7 +122,7 @@ class Closure(TableDB):
             ancestor = 1
             descendant = 1
             depth = 0
-            print(self.insert_query)
+            #print(self.insert_query)
             self.cursor.execute(self.insert_query,(ancestor, descendant, depth))
         
 class SqliteWrite():
@@ -135,6 +145,8 @@ class SqliteWrite():
     
     def get_cursor(self):
         return self.cursor
+    def get_connection(self):
+        return self.database
         
     def init_table(self, table, add_closure = False):
         self.table.append(table)
@@ -158,3 +170,7 @@ class SqliteWrite():
         closure.set_insert_query()
         self.table.append(closure)
         self.cursor.execute(self.table[-1].create_table_query())
+    
+    def create_index(self, column_name):
+        query = 'CREATE INDEX {c0}_index ON data ({c1});'.format(c0 = column_name, c1 = column_name)
+        self.cursor.execute(query)

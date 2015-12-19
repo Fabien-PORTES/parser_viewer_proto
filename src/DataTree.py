@@ -1,120 +1,137 @@
 # To change this license header, choose License Headers in Project Properties.
 # To change this template file, choose Tools | Templates
 # and open the template in the editor.
-from PyQt5 import QtGui
-from collections import OrderedDict
+from PyQt5 import QtGui, QtCore
+from SqliteRead import *
+
+class Item(QtGui.QStandardItem):
+    select_query = 'SELECT *, count(distinct(key)) FROM data WHERE parent_id IN ({id_list}) group by key, value'
+    cursor = None
+    
+    def __init__(self, string = None):
+        super().__init__(string)
+        self.is_filled = False
+        self.row_id = []
+        self.is_all = False
+        self.is_data = False
+        self.is_index = False
+    
+    @classmethod
+    def set_cursor(cls, cursor):
+        cls.cursor = cursor
+    
+    def has_child(self, child_text):
+        for i in range(self.rowCount()):
+            if self.child(i).text() == child_text:
+                return i
+        return -1
+    
+    def fill(self, parent_list=[1]):
+        query = Item.select_query.format(id_list = ",".join(len(parent_list)*['?']))
+        data = Item.cursor.execute(query, parent_list)
+        while True:
+            try:
+                (row_id, key, key_idx, parent, has_child, count) = data.fetchone()
+                print (row_id, key, key_idx, parent, has_child)
+            except TypeError:
+                break
+            child = Item(key)
+            #child.appendColumn([Item(str(count))])
+            existing_child = Item.has_child(self, key)
+            if key_idx is not None:
+                if has_child:
+                    if existing_child != -1:
+                        child = Item(str(key_idx))
+                        child.is_index = True
+                        child.setData(row_id)
+                        #child.appendColumn([Item(str(count))])
+                        self.child(existing_child).appendRow(child)
+                    else:
+                        i = self.rowCount()
+                        self.appendRow(child)
+                        child = Item(str(key_idx))
+                        #child.appendColumn([Item(str(count))])
+                        child.setData(row_id)
+                        child.is_index = True
+                        all = Item("All")
+                        #all.appendColumn([Item("count")])
+                        all.is_all = True
+                        self.child(i).appendRow(all)
+                        self.child(i).appendRow(child)
+                elif not has_child and existing_child == -1:
+                    child.is_data = True
+                    child.setData(row_id)
+                    #child.appendColumn([Item(str(count))])
+                    self.appendRow(child)
+                    
+
+            elif existing_child == -1:
+                i = self.rowCount()
+                self.appendRow(child)  
+                self.child(i).setData(row_id)
+            self.is_filled = True
+    
+    def brothers(self):
+        own_idx = self.index().row()
+        if self.parent:
+            for i in range(1, self.parent().rowCount()):
+                if i != own_idx:
+                    yield self.parent().child(i)
+    
+    def setData(self, data):
+        self.row_id.append(data)
+    
+    def get_data(self):
+        return self.row_id
 
 class Data(QtGui.QStandardItemModel):
     def __init__(self):
         super().__init__()
-        self.cursor = None
-        
-    def fill_item(self, item):
-        query = 'SELECT * FROM tree'
-        print(query)
-        data = self.cursor.execute(query)
-        (row_id, key, key_idx, parent) = data.fetchone()
-        item.setData(row_id)
-        item.setText(key)
-        row_id_depth = OrderedDict({1:[0]})
-        
-        while True:
-            try:
-                (row_id, key, key_idx, parent) = data.fetchone()
-            except TypeError:
-                break
-            item = self.invisibleRootItem()
-            child = QtGui.QStandardItem(key)
 
-            idx = list(row_id_depth.keys()).index(parent)
-            for index in list(row_id_depth.values())[1:idx+1]:
-                for i in index:
-                    item = item.child(i)
-            for k in row_id_depth.keys():
-                if k > parent:
-                    del row_id_depth[k]
-                
-            if key_idx is not None:
-                bla = False
-                for i in range(item.rowCount()):
-                    if item.child(i).text() == child.text():
-                        n = item.child(i).rowCount()
-                        child = QtGui.QStandardItem(str(n + 1))
-                        item.child(i).appendRow(child)
-                        bla = True
-                        row_id_depth[row_id] = [i, n]
-                if not bla:
-                    item.appendRow(child)
-                    child = QtGui.QStandardItem("1")
-                    i = item.rowCount()-1
-                    item.child(i).appendRow(child)
-                    row_id_depth[row_id] = [i, 0]
-            else:
-                n = item.rowCount()
-                item.appendRow(child)                     
-                row_id_depth[row_id] = [n]
-
-    def fill_tree(self):
-        self.clear()     
-        self.fill_item(self.invisibleRootItem())
-        print("end")
+    def fill_root(self):
+        self.clear()
+        Item.fill(self.invisibleRootItem())
     
-    def get_child(self, index_list):
+    def get_deepest_child(self, index_list):
         item = self.invisibleRootItem()
         for i in index_list:
             item = item.child(i)
         return item
-            
     
-    def set_cursor(self, cursor):
-        self.cursor = cursor
+    def yield_children(self, index_list):
+        item = self.invisibleRootItem()
+        for i in index_list:
+            item = item.child(i)
+            yield item
 
-#app = QtWidgets.QApplication(sys.argv)
-#
-#a = Data()
-#a.fill_tree(cursor)
-##a.setHeaderLabels(["Tree Matches", "Size"])
-#
-#
-# 
-## Our main window will be a QListView
-#list = QtWidgets.QColumnView()
-#list.setWindowTitle('Example List')
-#list.setMinimumSize(600, 400)
-#
-# 
-## Create an empty model for the list's data
-#model = QtGui.QStandardItemModel(list)
-#model.setHorizontalHeaderLabels(('walou', "tareum"))
-# 
-## Add some textual items
-#foods = [
-#    'Cookie dough', # Must be store-bought
-#    'Hummus', # Must be homemade
-#    'Spaghetti', # Must be saucy
-#    'Dal makhani', # Must be spicy
-#    'Chocolate whipped cream' # Must be plentiful
-#]
-# 
-#for food in foods:
-#    # create an item with a caption
-#    item = QtGui.QStandardItem(food)
-# 
-#    # add a checkbox to it
-#    #item.setCheckable(True)
-#    
-#    valu = QtGui.QStandardItem("food")
-#    # Add the item to the model
-#    model.appendRow((item, valu))
-#
-# 
-## Apply the model to the list view
-#list.setModel(a)
-# 
-## Show the window and run the app
-#list.show()
-#app.exec_()
-    
-    
-    
+class PandasModel(QtCore.QAbstractTableModel):
+    """
+    Class to populate a table view with a pandas dataframe
+    """
+    def __init__(self, data, parent=None):
+        QtCore.QAbstractTableModel.__init__(self, parent)
+        self._data = data
+
+    def rowCount(self, parent=None):
+        return len(self._data.values)
+
+    def columnCount(self, parent=None):
+        try:
+            return self._data.columns.size
+        except AttributeError:
+            return 1
         
+    def data(self, index, role=QtCore.Qt.DisplayRole):
+        if index.isValid():
+            if role == QtCore.Qt.DisplayRole:
+                return str(self._data.values[index.row()][index.column()])
+        return None
+
+    def headerData(self, col, orientation, role=QtCore.Qt.DisplayRole):
+        if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
+            return str(self._data.columns[col])
+        elif orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
+            return str(self._data.index[col])
+        return None
+    
+    

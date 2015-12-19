@@ -2,9 +2,10 @@
 # To change this template file, choose Tools | Templates
 # and open the template in the editor.
 # -*- coding: utf-8 -*-
-from PyQt5 import QtGui, QtWidgets, QtCore
+from PyQt5 import QtGui, QtWidgets, QtSql
 from DataTree import *
 from Main import *
+from collections import OrderedDict
 import pandas as pd
 import sys
 
@@ -19,23 +20,19 @@ class MainWindow(QtWidgets.QMainWindow):
     def init_ui(self):               
         self.centralWidget = QtWidgets.QWidget()
         #self.gridLayout = QtGui.QGridLayout(self.centralWidget)
-        self.tree_view = QtWidgets.QColumnView()
-       
-        #self.tree_view.setHeaderLabels(["Tree Matches", "Size"])
-        #for i in range(self.tree_view.columnCount()):
-        #    self.tree_view.resizeColumnToContents(i)
-        
+        self.tree_view = QtWidgets.QTreeView()
         self.tree_model = Data()
 
-        
-        
         self.textEdit = QtWidgets.QPlainTextEdit()
         self.textEdit.setTabStopWidth(40) #40 is a number of pixel
         self.textEdit.setLineWrapMode(self.textEdit.NoWrap)
         
-        self.Hbox = QtWidgets.QVBoxLayout(self.centralWidget)
+        self.table_view = QtWidgets.QTableView()
+        self._tables = list()
+        
+        self.Hbox = QtWidgets.QHBoxLayout(self.centralWidget)
         self.Hbox.addWidget(self.tree_view)
-        self.Hbox.addWidget(self.textEdit)
+        self.Hbox.addWidget(self.table_view)
         
         self.setCentralWidget(self.centralWidget)
         
@@ -57,7 +54,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         displayAction = QtWidgets.QAction(QtGui.QIcon('exit24.png'), 'Display', self)
         displayAction.setStatusTip('Display Matches')
-        displayAction.triggered.connect(self.init_view)
+        displayAction.triggered.connect(self.init_tree_view)
 
         self.statusBar()
 
@@ -95,60 +92,99 @@ class MainWindow(QtWidgets.QMainWindow):
             core.set_regex_tree(path)
 
     def init_database(self):
-        table_tree = ( AdjacencyList(name = "data",\
-            columns = [("row_id", "INTEGER PRIMARY KEY NOT NULL"),\
-                       ("key", "TEXT"),\
-                       ("value", "FLOAT"),\
-                       ("parent_id", "INTEGER")]) )
-        table_tree.set_insert_query(1)
-        table_data = ( AdjacencyList(name = "tree",\
+        table_data = ( AdjacencyList(name = "data",\
             columns = [("row_id", "INTEGER PRIMARY KEY NOT NULL"),\
                        ("key", "TEXT"),\
                        ("value", "INTEGER"),\
-                       ("parent_id", "INTEGER")]) )
+                       ("parent_id", "INTEGER"),\
+                       ("has_child", "INTEGER")]) )
         table_data.set_insert_query(1)
-        core.create_database([table_tree, table_data])
+        core.create_database([table_data])
     
     def load_database(self):
         path = os.path.normpath(QtWidgets.QFileDialog.getOpenFileName()[0])
+        #path = os.path.normpath("/home/fabien/Bureau/last_IA1/OUTPUT_15-12-2015_11:20:42.db")
         if path:
             core.init_database(path)
-            self.tree_model.set_cursor(core.get_cursor())
+            Item.set_cursor(core.get_cursor())
         
     def parse(self):
         self.init_database()
         core.parse()
-        self.tree_model.set_cursor(core.get_cursor())
+        Item.set_cursor(core.get_cursor())
     
     def selection_changed(self):
-        selection = self.selection_model.selection()
-        for i in selection.indexes():
+        item = self.selection_tree.selection()
+        tree = self.item_tree(item)
+        item = self.tree_model.get_deepest_child(tree)
+        if not item.is_filled:
+            print(item.get_data())
+            if item.is_all:
+                item.fill([x for it in item.brothers() for x in it.get_data()])
+            else:
+                item.fill(item.get_data())
+        if item.is_data:
+            query, all_tree, val = self.get_data_query(tree)
+            a = pd.read_sql(query, core.get_connection())
+            #print(a.to_csv(sep = "\t"))
+            #print(a.index)
+            #print(val)
+            if len(all_tree) > 1:
+                b = pd.pivot_table(a, index = all_tree[0], columns = all_tree[1:], values = val)
+            elif len(all_tree) == 1:
+                b = a.set_index(all_tree[0])
+            elif len(all_tree) == 0:
+                b = a
+            print(b)
+
+            model = PandasModel(b)
+            self._tables.append(model)
+            self.init_table_view()
+            
+    
+    def item_tree(self, item):
+        for i in item.indexes():
             tree = [i.row()]
             while tree[-1] != -1:
                 tree.append(i.parent().row())
                 i = i.parent()
             del tree[-1]
             tree.reverse()
-            item = self.tree_model.get_child(tree)
-        if not item.is_filled:
-            print(item.get_data())
-            self.tree_model.fill_item(item, item.get_data())
-        self.textEdit.insertPlainText(str(item.get_data()))
+        return tree
+    
+    def get_data_query(self, tree):
+        text_tree = OrderedDict()
+        all_tree = list()
         
-    def init_view(self):
-        self.tree_view.setModel(self.tree_model)
-        self.selection_model = self.tree_view.selectionModel()
-        
-        self.selection_model.selectionChanged.connect(self.selection_changed)
-        self.tree_model.fill_root()
-        
-        
-        
+        key = ""
+        for child in self.tree_model.yield_children(tree):
+            if child.is_index:
+                text_tree[key] = int(child.text())
+            elif child.is_all:
+                all_tree.append(key)
+            else:
+                text_tree[child.text()] = None
+            key = child.text()
+        print(text_tree)
+        query = SqliteQuery()
+        query.build_from_dict(text_tree, all_tree)
+        print(query.get_query())
+        return (query.get_query(), all_tree, list(text_tree.keys())[-1])
 
-    
-    
+    def init_tree_view(self):
+        #self.load_database()
+        self.tree_view.setModel(self.tree_model)
+        self.tree_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.selection_tree = self.tree_view.selectionModel()
         
+        
+        self.selection_tree.selectionChanged.connect(self.selection_changed)
+        
+        self.tree_model.setColumnCount(2)
+        self.tree_model.fill_root()
     
+    def init_table_view(self):
+        self.table_view.setModel(self._tables[-1])
         
         
 def main():

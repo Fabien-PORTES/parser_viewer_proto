@@ -34,6 +34,8 @@ class Main():
             except FileEnd:
                 print("End of file reached on file : {}".format(file_path))
         self.database.commit()
+        print('Creating index')
+        self.database.create_index("parent_id")
         end = time()
         elapsed = end - start
         print(elapsed)
@@ -56,6 +58,12 @@ class Main():
             return self.database.cursor
         else:
             print("None database has been initialiazed.")
+    
+    def get_connection(self):
+        if self.database.get_connection() is not None:
+            return self.database.get_connection()
+        else:
+            print("Database has nor been initialiazed")
 
 tree_table = ( AdjacencyList(name = "tree",\
             columns = [("row_id", "INTEGER PRIMARY KEY NOT NULL"),

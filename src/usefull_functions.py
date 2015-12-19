@@ -10,3 +10,6 @@ def create_dict(var_list, match_list, data_dict):
         data_dict[var] = match_list[len(var_list)-1:]
     # if len(match_list) < len(var_list): nothing
     # variable without matched data are not created
+
+def quote(s1):
+    return "'{}'".format(s1)

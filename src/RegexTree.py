@@ -107,6 +107,7 @@ class Bloc(BlocTemplate):
                                 except ValueError:
                                     temp_match_list.append(elt)
             create_dict(variable._name, temp_match_list, data_dict)
+        print(data_dict)    
         return data_dict
     
     def __repr__(self):
@@ -173,9 +174,11 @@ class ParentBloc(BlocTemplate):
             value = i+1 if self.repetition > 1 else None
             #parentID.append(database.table[0].push(key, value, parentID)) nested set and adjacency list
             #database.table[1].push(parentID)
-            parentID.append(database.table[0].push(key, value, parentID))
+            #database.table[1].push(key, value, parentID)
+            parentID.append(database.table[0].push(key, value, parentID, 1))
+            
             #print(parentID)
-            database.commit()
+            #database.commit()
             for bloc in self._obj_list:
                 if isinstance(bloc, Bloc):
                     for j in range(bloc.repetition):
@@ -185,25 +188,30 @@ class ParentBloc(BlocTemplate):
                             file_end = True
                             data_dict = e.args[0]
                             if not data_dict:
+                                if j== 0:
+                                    print("row %s deleted" %str(parentID[-1]))
+                                    database.table[0].delete_row(parentID[-1])
                                 raise
                         if not data_dict:
+                            if j== 0:
+                                print("row %s deleted" %str(parentID[-1]))
+                                database.table[0].delete_row(parentID[-1])
                             break
                         
                         if "name" not in data_dict.keys():
                             for key, value in data_dict.items():
                                 #parentID.append(database.table[0].push(key, value, parentID)) nested set and adjacency list
                                 #database.table[1].push(parentID)
-                                database.table[1].push(key, value, parentID)
-                                database.table[0].push(key, value, parentID)
+                                database.table[0].push(key, value, parentID, 0)
                                 #print(parentID)
                                 #del parentID[-1]
-                                pass
                         else:
                             depth += 1
                             #This is a 3 level dict (a table has been matched
                             keys = [k for k in data_dict.keys() if "name" not in k]
                             for (i, row) in enumerate(data_dict["name"]):
-                                parentID.append(database.table[0].push(row, None, parentID))
+                                #database.table[1].push(row, None, parentID)
+                                parentID.append(database.table[0].push(row, None, parentID, 1))
                                 #parentID.append(database.table[0].push(row, None, parentID))
                                 #database.table[1].push(parentID)
                                 for k in keys:
@@ -211,8 +219,7 @@ class ParentBloc(BlocTemplate):
                                         val = data_dict[k][i]
                                         #parentID.append(database.table[0].push(k, val, parentID)) nested set and adjacency list
                                         #database.table[1].push(parentID)
-                                        database.table[1].push(k, val, parentID)
-                                        database.table[0].push(key, value, parentID)
+                                        database.table[0].push(k, val, parentID, 0)
                                         #print(parentID)
                                     except IndexError:
                                         print("Less value than header. Value set to 'None'")
@@ -224,6 +231,7 @@ class ParentBloc(BlocTemplate):
                     
                 elif isinstance(bloc, ParentBloc):
                     ParentBloc.parse(bloc, file_to_parse, database, parentID, depth+1)
+                    
             del parentID[-1]
             #print(parentID)
             
