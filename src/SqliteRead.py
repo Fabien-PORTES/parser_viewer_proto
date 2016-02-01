@@ -16,7 +16,8 @@ class SqliteQuery():
     
     def join(self, key, value = None):
         self._key_value[key] = value
-        key = quote(key)
+        key = quote(key.replace("'", "''"))
+        print(key)
         self._sql_table.append(Table(self._table))
         if self._join:
             join = self._join[-1].join(self._sql_table[-1])

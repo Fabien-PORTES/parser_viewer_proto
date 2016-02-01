@@ -66,9 +66,8 @@ class Item(QtGui.QStandardItem):
                     
 
             elif existing_child == -1:
-                i = self.rowCount()
+                child.setData(row_id)
                 self.appendRow(child)  
-                self.child(i).setData(row_id)
             self.is_filled = True
     
     def brothers(self):

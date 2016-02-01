@@ -19,26 +19,36 @@ class Main():
     
     def set_regex_tree(self, path):
         self.regex_tree = ParentBloc(path)
+        self.regex_tree.is_root = True
         self.regex_tree._breaking_regex.append(self.regex_tree.last_regex(-1))
         self.regex_tree.regex_limit()
         
     def set_file_to_parse(self, path):
         self.files_to_parse.append(path)
     
-    def parse(self):
+    def parse_files(self):
         start = time()
-        for file_path in self.files_to_parse:
-            try:
-                file_to_parse = FileLineWrapper(open(file_path, 'r'))
-                self.regex_tree.parse(file_to_parse, self.database)
-            except FileEnd:
-                print("End of file reached on file : {}".format(file_path))
-        self.database.commit()
+        if len(self.files_to_parse) == 1:
+            self.parse_file(self.files_to_parse[0])
+        else:
+            self.database.table[0].push("root", None, None, 1)
+            for file_path in self.files_to_parse:
+                self.parse_file(file_path, [1])
         print('Creating index')
         self.database.create_index("parent_id")
         end = time()
         elapsed = end - start
         print(elapsed)
+
+    def parse_file(self, file_path, parent_id = []):
+        print("Processing file : {path}".format(path = file_path))
+        try:
+            file_to_parse = FileLineWrapper(open(file_path, 'r', encoding = "iso-8859-15"))
+            self.regex_tree.parse(file_to_parse, self.database, parent_id)
+        except FileEnd:
+            print("End of file reached on file : {}".format(file_path))
+        self.database.commit()
+        
     
     def create_database(self, tables):
         format = "%d-%m-%Y_%H:%M:%S"

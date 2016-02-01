@@ -110,7 +110,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
     def parse(self):
         self.init_database()
-        core.parse()
+        core.parse_files()
         Item.set_cursor(core.get_cursor())
     
     def selection_changed(self):
@@ -126,16 +126,18 @@ class MainWindow(QtWidgets.QMainWindow):
         if item.is_data:
             query, all_tree, val = self.get_data_query(tree)
             a = pd.read_sql(query, core.get_connection())
-            #print(a.to_csv(sep = "\t"))
-            #print(a.index)
+            print("a done")
+            print(a.to_csv(sep = "\t"))
+            print(all_tree + [val])
             #print(val)
             if len(all_tree) > 1:
-                b = pd.pivot_table(a, index = all_tree[0], columns = all_tree[1:], values = val)
+                print(a.groupby(all_tree))
+                b = pd.pivot_table(a, index = all_tree[0], columns = all_tree[1:], values = val, aggfunc = lambda x: x.sum())
             elif len(all_tree) == 1:
                 b = a.set_index(all_tree[0])
             elif len(all_tree) == 0:
                 b = a
-            print(b)
+            print("b done")
 
             model = PandasModel(b)
             self._tables.append(model)
@@ -174,6 +176,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def init_tree_view(self):
         #self.load_database()
         self.tree_view.setModel(self.tree_model)
+        
         self.tree_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.selection_tree = self.tree_view.selectionModel()
         
@@ -184,7 +187,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tree_model.fill_root()
     
     def init_table_view(self):
+        self.table_view.setWordWrap(True)
         self.table_view.setModel(self._tables[-1])
+        self.table_view.setColumnWidth(0, 80)
+        self.table_view.resizeRowsToContents()
         
         
 def main():

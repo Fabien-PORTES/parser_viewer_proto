@@ -28,13 +28,6 @@ class BlocTemplate:
         elif isinstance(regex, str):
             if regex not in self._breaking_regex:
                 self._breaking_regex.append(regex)
-
-    def empty(self):
-        if not self._obj_list:
-            print("{} is empty".format(self)) 
-            return True
-        else: 
-            return False
             
 
 class Bloc(BlocTemplate):
@@ -107,7 +100,6 @@ class Bloc(BlocTemplate):
                                 except ValueError:
                                     temp_match_list.append(elt)
             create_dict(variable._name, temp_match_list, data_dict)
-        print(data_dict)    
         return data_dict
     
     def __repr__(self):
@@ -118,6 +110,7 @@ class ParentBloc(BlocTemplate):
         super().__init__(path)
         self._obj_list = list()
         self._order_bloc = list()
+        self.is_root = False
         
         self.fill_self(path)
         self.fill()
@@ -169,17 +162,17 @@ class ParentBloc(BlocTemplate):
 
     def parse(self, file_to_parse, database, parentID = [], depth = 0):
         file_end = False
+        
         for i in range(self.repetition):
-            key = self.name
+            _something_added = False
+            key = file_to_parse.name if self.is_root else self.name
             value = i+1 if self.repetition > 1 else None
             #parentID.append(database.table[0].push(key, value, parentID)) nested set and adjacency list
             #database.table[1].push(parentID)
             #database.table[1].push(key, value, parentID)
             parentID.append(database.table[0].push(key, value, parentID, 1))
             
-            #print(parentID)
-            #database.commit()
-            for bloc in self._obj_list:
+            for k, bloc in enumerate(self._obj_list):
                 if isinstance(bloc, Bloc):
                     for j in range(bloc.repetition):
                         try:
@@ -188,14 +181,8 @@ class ParentBloc(BlocTemplate):
                             file_end = True
                             data_dict = e.args[0]
                             if not data_dict:
-                                if j== 0:
-                                    print("row %s deleted" %str(parentID[-1]))
-                                    database.table[0].delete_row(parentID[-1])
                                 raise
                         if not data_dict:
-                            if j== 0:
-                                print("row %s deleted" %str(parentID[-1]))
-                                database.table[0].delete_row(parentID[-1])
                             break
                         
                         if "name" not in data_dict.keys():
@@ -203,10 +190,11 @@ class ParentBloc(BlocTemplate):
                                 #parentID.append(database.table[0].push(key, value, parentID)) nested set and adjacency list
                                 #database.table[1].push(parentID)
                                 database.table[0].push(key, value, parentID, 0)
+                                _something_added = True
                                 #print(parentID)
                                 #del parentID[-1]
                         else:
-                            depth += 1
+                            #depth += 1
                             #This is a 3 level dict (a table has been matched
                             keys = [k for k in data_dict.keys() if "name" not in k]
                             for (i, row) in enumerate(data_dict["name"]):
@@ -220,20 +208,23 @@ class ParentBloc(BlocTemplate):
                                         #parentID.append(database.table[0].push(k, val, parentID)) nested set and adjacency list
                                         #database.table[1].push(parentID)
                                         database.table[0].push(k, val, parentID, 0)
+                                        _something_added = True
                                         #print(parentID)
                                     except IndexError:
                                         print("Less value than header. Value set to 'None'")
                                     #del parentID[-1]
                                 del parentID[-1]
-                            depth -= 1
+                            #depth -= 1
                         if file_end:
                             raise FileEnd()
-                    
+
                 elif isinstance(bloc, ParentBloc):
-                    ParentBloc.parse(bloc, file_to_parse, database, parentID, depth+1)
-                    
+                    if ParentBloc.parse(bloc, file_to_parse, database, parentID, depth+1):
+                        _something_added = True
+            if not _something_added:
+                database.table[0].delete_row(parentID[-1])
             del parentID[-1]
-            #print(parentID)
+        return _something_added
             
 
     def __repr__(self):

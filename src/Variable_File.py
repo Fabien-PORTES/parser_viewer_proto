@@ -5,7 +5,7 @@
 
 
 from collections import OrderedDict
-import re
+import re, os
 
 class FileEnd(Exception):
 	pass			
@@ -15,12 +15,17 @@ class BlocEnd(Exception):
 class FileLineWrapper(object):
     def __init__(self, f):
         self.f = f
+        self.path = f.name
+        self.name = self.path[self.path.rfind(os.sep) + 1:]
         self.curseur = 0
         self.file_end = False
     def close(self):
         return self.f.close()
     def readline(self):
-        self.line = self.f.readline()
+        try:
+            self.line = self.f.readline()
+        except UnicodeEncodeError:
+            print("UnicodeDecodeError on file {file}".format(file = self.f.name)) 
         try:
             assert self.line
         except AssertionError:
